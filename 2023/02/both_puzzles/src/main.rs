@@ -50,16 +50,25 @@ impl Game {
         }
     }
 
-    fn is_possible(&self) -> bool {
+    fn get_max_of_each_color(&self) -> (u32, u32, u32) {
         let max_red = self.noticed_cubes.iter().map(|nc| nc.red).max().unwrap();
         let max_blue = self.noticed_cubes.iter().map(|nc| nc.blue).max().unwrap();
         let max_green = self.noticed_cubes.iter().map(|nc| nc.green).max().unwrap();
+        (max_red, max_blue, max_green)
+    }
+
+    fn is_possible(&self) -> bool {
+        let (max_red, max_blue, max_green) = self.get_max_of_each_color();
         max_red <= 12 && max_blue <= 14 && max_green <= 13
+    }
+
+    fn calculate_power(&self) -> u32 {
+        let (max_red, max_blue, max_green) = self.get_max_of_each_color();
+        max_red * max_blue * max_green
     }
 }
 
-fn main() {
-    // Game 1: 1 green, 2 red, 6 blue; 4 red, 1 green, 3 blue; 7 blue, 5 green; 6 blue, 2 red, 1 green
+fn puzzle_1() {
     let file = File::open("input/input.txt").unwrap();
     let result: u32 = BufReader::new(file)
         .lines()
@@ -68,5 +77,21 @@ fn main() {
         .filter(|game| game.is_possible())
         .map(|game| game.game_id)
         .sum();
-    println!("Result => {result}");
+    println!("Puzzle 1 result => {result}");
+}
+
+fn puzzle_2() {
+    let file = File::open("input/input.txt").unwrap();
+    let result: u32 = BufReader::new(file)
+        .lines()
+        .filter_map(|c| c.ok())
+        .map(|line| Game::parse_from(&line))
+        .map(|game| game.calculate_power())
+        .sum();
+    println!("Puzzle 2 result => {result}");
+}
+
+fn main() {
+    puzzle_1();
+    puzzle_2();
 }
