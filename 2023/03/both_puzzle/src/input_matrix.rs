@@ -1,5 +1,8 @@
-use crate::filereader;
+use crate::file_reader;
 use crate::found_number::FoundNumber;
+use crate::found_star::FoundStar;
+use crate::input_matrix_numbers::InputMatrixNumbers;
+
 
 pub struct InputMatrix {
     matrix: Vec<Vec<char>>,
@@ -7,15 +10,16 @@ pub struct InputMatrix {
 
 impl InputMatrix {
     pub fn read_from_file(file_path: &str) -> std::io::Result<InputMatrix> {
-        let lines = filereader::filereader::read_input_file(file_path)?
+        let lines = file_reader::file_reader::read_input_file(file_path)?
             .filter_map(|line| line.ok())
             .map(|line| line.chars().collect())
             .collect();
         Ok(InputMatrix { matrix: lines })
     }
 
-    pub fn find_all_numbers(&self) -> Vec<FoundNumber> {
-        self.matrix
+    pub fn find_all_numbers(&self) -> InputMatrixNumbers {
+        let numbers = self
+            .matrix
             .iter()
             .enumerate()
             .map(|(line_index, line)| {
@@ -48,7 +52,24 @@ impl InputMatrix {
                 }
                 all_numbers
             })
-            .flatten()
+            .collect();
+        InputMatrixNumbers { numbers }
+    }
+
+    pub fn find_all_stars(&self) -> Vec<FoundStar> {
+        self.matrix
+            .iter()
+            .enumerate()
+            .flat_map(|(line_index, chars)| {
+                chars
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, char)| **char == '*')
+                    .map(move |(column, _)| FoundStar {
+                        line: line_index as i32,
+                        column: column as i32,
+                    })
+            })
             .collect()
     }
 
