@@ -1,0 +1,4 @@
+[package]
+name = "both_puzzles"
+version = "0.1.0"
+edition = "2021"
