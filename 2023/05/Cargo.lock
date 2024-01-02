@@ -3,5 +3,12 @@
 version = 3
 
 [[package]]
-name = "both_puzzles"
+name = "_05"
+version = "0.1.0"
+dependencies = [
+ "file_reader",
+]
+
+[[package]]
+name = "file_reader"
 version = "0.1.0"

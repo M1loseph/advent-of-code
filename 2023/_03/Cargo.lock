@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "both_puzzle"
+name = "_03"
 version = "0.1.0"
