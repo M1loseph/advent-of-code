@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Range {
     pub destination_range_start: u64,
     pub source_range_start: u64,
