@@ -3,3 +3,14 @@
 Puzzle 1: 
 
 Puzzle 2: 2008
+
+#### Performance optiomization
+
+First version of puzzle 2 solution reallocated laboratory map matrix (that was 130 * 130 * 4 bytes ≈ 66kB) in each iteration. Let's say, 90% of fields are not an obstacle. That means, it had to allocate around 1GB od data during the program life!
+
+| solution description                                                                    | execution time (average from 3 runs) |
+| --------------------------------------------------------------------------------------- | ----------------------------------- |
+| Allocating new matrix every time I flip PATH tile to the OBSTACLE time                  | 14603ms                             |
+| Flipping one tile and manually reverting guard position and direction in each iteration | 11432ms                             |
+
+So yeah, there is some performance improvement, but I expected more.

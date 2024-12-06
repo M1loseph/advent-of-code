@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::fs::read_to_string;
+use std::time::SystemTime;
 
 const GUARD_CURRENT_POSITION: char = '^';
 const OBSTACLE: char = '#';
@@ -111,8 +112,9 @@ impl LaboratoryMap {
         }
     }
 
-    fn count_new_obstacles_that_cause_loop(&self) -> u64 {
+    fn count_new_obstacles_that_cause_loop(&mut self) -> u64 {
         let mut accumulator = 0u64;
+        let initial_position_backup = self.guard_position.clone();
         for y in 0..self.obstracles.len() {
             for x in 0..self.obstracles[y].len() {
                 if self.obstracles[y][x] == Tile::OBSTACLE {
@@ -121,13 +123,13 @@ impl LaboratoryMap {
                 if self.guard_position == (x, y) {
                     continue;
                 }
-                // TODO: check performance improvement without clone
-                // (resetting new field and reseting guard position and facing direction)
-                let mut clone = self.clone();
-                clone.obstracles[y][x] = Tile::OBSTACLE;
-                if clone.loop_exists() {
+                self.obstracles[y][x] = Tile::OBSTACLE;
+                if self.loop_exists() {
                     accumulator += 1;
                 }
+                self.obstracles[y][x] = Tile::PATH;
+                self.guard_position = initial_position_backup.clone();
+                self.guard_facing = Direction::UP;
             }
         }
         accumulator
@@ -159,7 +161,7 @@ fn puzzle_1(laboratory_map: &LaboratoryMap) {
 }
 
 fn puzzle_2(laboratory_map: &LaboratoryMap) {
-    let new_obstacles_that_cause_loop = laboratory_map.count_new_obstacles_that_cause_loop();
+    let new_obstacles_that_cause_loop = laboratory_map.clone().count_new_obstacles_that_cause_loop();
     println!("There are {new_obstacles_that_cause_loop} possible placements for a single obstacle to cause a loop");
 }
 
@@ -191,7 +193,16 @@ fn main() {
         obstracles: map,
     };
 
+    fn benchmark<T>(benchmarked_function: T) where T: Fn() -> () {
+        let begin = SystemTime::now();
+        benchmarked_function();
+        let diff = begin.elapsed().unwrap();
+        println!("It took {} ms to execute the function", diff.as_millis());
+    }
+
+
     puzzle_1(&lab_map);
-    // TODO: measure execution time
-    puzzle_2(&lab_map);
+    benchmark(|| {
+        puzzle_2(&lab_map);
+    });
 }
