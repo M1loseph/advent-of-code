@@ -56,26 +56,41 @@ fn puzzle_1(robots: &Vec<Robot>) {
 
 // TODO: finish me
 fn puzzle_2(robots: &Vec<Robot>) {
+    let width = 101;
+    let height = 103;
+    let middle_offset = 5;
 
-    let mut seconds = 0;
-    loop {
-        let width = 101;
-        let height = 103;
-
-        let mut map = vec![vec!['.'; width as usize]; height as usize];
+    let mut lowest_result = u64::MAX;
+    for seconds in 0..10000 {
+        let mut map = vec![vec![' '; width as usize]; height as usize];
+        let mut quadrants = [0, 0, 0, 0];
         for robot in robots {
             let (x, y) = robot.position_after_n_seconds(seconds, width, height);
-            map[y as usize][x as usize] = '*'
-        }
+            map[y as usize][x as usize] = '*';
 
-        for line in map {
-            for char in line {
-                print!("{char}");
+            if x < width / 2 - middle_offset && y < height / 2 - middle_offset {
+                quadrants[0] += 1;
+            } else if x > width / 2 + middle_offset && y < height / 2 - middle_offset {
+                quadrants[1] += 1;
+            } else if x < width / 2 - middle_offset && y > height / 2 + middle_offset {
+                quadrants[2] += 1;
+            } else if x > width / 2 + middle_offset && y > height / 2 + middle_offset {
+                quadrants[3] += 1;
             }
-            println!()
         }
 
-        seconds += 1;
+        let safety_factor = quadrants.iter().fold(1, |acc, next| acc * next);
+        if safety_factor < lowest_result {
+            lowest_result = safety_factor;
+            println!("============================== {seconds} ===============================");
+            for line in map {
+                for char in line {
+                    print!("{char}");
+                }
+                println!()
+            }
+            println!("======================================================================");
+        }
     }
 }
 

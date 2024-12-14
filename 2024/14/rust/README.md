@@ -2,4 +2,4 @@
 
 Puzzle 1: 229980828
 
-Puzzle 2:
+Puzzle 2: 7132
