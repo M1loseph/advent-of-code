@@ -1,4 +1,5 @@
-use std::fs::read_to_string;
+use common::matrix::Matrix;
+use std::{fs::read_to_string, ptr::addr_of};
 
 #[derive(Debug)]
 struct Game {
@@ -50,10 +51,16 @@ impl Game {
         let mut x = 0;
         let mut y = 0;
 
-        self.push(Button::A {
-            tried_a: false,
-            tried_b: false,
-        }, &mut stack, &mut cost, &mut x, &mut y );
+        self.push(
+            Button::A {
+                tried_a: false,
+                tried_b: false,
+            },
+            &mut stack,
+            &mut cost,
+            &mut x,
+            &mut y,
+        );
 
         while !stack.is_empty() {
             if (x, y) == self.prize {
@@ -70,15 +77,25 @@ impl Game {
                 Button::A { tried_a, tried_b } => {
                     if !*tried_a {
                         *tried_a = true;
-                        self.push(Button::A {
-                            tried_a: false,
-                            tried_b: false,
-                        }, &mut stack, &mut cost, &mut x, &mut y);
+                        self.push(
+                            Button::A {
+                                tried_a: false,
+                                tried_b: false,
+                            },
+                            &mut stack,
+                            &mut cost,
+                            &mut x,
+                            &mut y,
+                        );
                     } else if !*tried_b {
                         *tried_b = true;
-                        self.push(Button::B {
-                            tried_b: false,
-                        }, &mut stack, &mut cost, &mut x, &mut y);
+                        self.push(
+                            Button::B { tried_b: false },
+                            &mut stack,
+                            &mut cost,
+                            &mut x,
+                            &mut y,
+                        );
                     } else {
                         self.pop(&mut stack, &mut cost, &mut x, &mut y);
                     }
@@ -86,7 +103,13 @@ impl Game {
                 Button::B { tried_b } => {
                     if !*tried_b {
                         *tried_b = true;
-                        self.push(Button::B { tried_b: false }, &mut stack, &mut cost, &mut x, &mut y);
+                        self.push(
+                            Button::B { tried_b: false },
+                            &mut stack,
+                            &mut cost,
+                            &mut x,
+                            &mut y,
+                        );
                     } else {
                         self.pop(&mut stack, &mut cost, &mut x, &mut y);
                     }
@@ -114,7 +137,14 @@ impl Game {
         };
     }
 
-    fn push(&self, button: Button, stack: &mut Vec<Button>, cost: &mut u64, x: &mut u64, y: &mut u64) {
+    fn push(
+        &self,
+        button: Button,
+        stack: &mut Vec<Button>,
+        cost: &mut u64,
+        x: &mut u64,
+        y: &mut u64,
+    ) {
         match button {
             Button::A { .. } => {
                 *cost += A_COST;
@@ -132,8 +162,29 @@ impl Game {
         stack.push(button);
     }
 
-    fn smallest_number_of_tokens_algebra(&self) {
-
+    fn smallest_number_of_tokens_algebra(&self) -> Option<u64> {
+        let a = Matrix::new(&[
+            &[self.a.0 as f64, self.b.0 as f64],
+            &[self.a.1 as f64, self.b.1 as f64],
+        ])
+        .unwrap();
+        match a.inverse() {
+            Some(inversed) => {
+                let b = Matrix::new(&[&[self.prize.0 as f64], &[self.prize.1 as f64]]).unwrap();
+                let result = inversed * b;
+                let a_clicks = result[0][0].round() as u64;
+                let b_clicks = result[1][0].round() as u64;
+                let (tx, ty) = self.prize;
+                if a_clicks * self.a.0 + b_clicks * self.b.0 == tx
+                    && a_clicks * self.a.1 + b_clicks * self.b.1 == ty
+                {
+                    Some(a_clicks * A_COST + b_clicks * B_COST)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
     }
 
     fn fix_unit(&mut self) {
@@ -225,7 +276,7 @@ fn puzzle_2(games: &mut Vec<Game>) {
             game.fix_unit();
             game
         })
-        .filter_map(|game| game.smallest_number_of_tokens_iterative())
+        .filter_map(|game| game.smallest_number_of_tokens_algebra())
         .sum();
     println!("Sum of smalles possible solutions is {total}");
 }
