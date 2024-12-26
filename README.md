@@ -6,5 +6,6 @@ All examples are implemented in a language I wanted to use on a particular day. 
 ### TODO:
 
 - 2024 / day 16 - create a visualization for path finding and create a true A*
+- 2024 / day 22 - parallelize the bruteforce solution
 
 
