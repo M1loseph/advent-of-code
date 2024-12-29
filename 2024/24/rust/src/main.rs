@@ -1,90 +1,54 @@
-use std::{collections::HashMap, fs::read_to_string, rc::Rc};
+use std::{
+    any::Any,
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    fs::read_to_string,
+    rc::Rc,
+};
 
-struct MultiIndexCounter {
-    inner: Vec<usize>,
-    size: usize,
-    overflow: bool,
-    first_call: bool,
-}
-
-impl MultiIndexCounter {
-    fn new(pairs: usize, size: usize) -> Self {
-        MultiIndexCounter {
-            inner: vec![0; pairs * 2],
-            size,
-            overflow: false,
-            first_call: true,
-        }
-    }
-
-    fn next(&mut self) -> Option<&Vec<usize>> {
-        if self.first_call {
-            self.first_call = false;
-            return Some(&self.inner);
-        }
-        if self.overflow {
-            return None;
-        }
-        for i in 0..self.inner.len() {
-            if self.inner[i] + 1 < self.size {
-                self.inner[i] += 1;
-                break;
-            }
-            self.inner[i] = 0;
-            if i + 1 == self.inner.len() {
-                self.overflow = true;
-            }
-        }
-        if self.overflow {
-            return None;
-        }
-        Some(&self.inner)
-    }
-}
-
-trait Source {
-    fn evaluate(&mut self) -> bool;
+trait Source: Any + Debug {
+    fn evaluate(&self) -> bool;
     fn name(&self) -> &str;
+    fn as_any(&self) -> &dyn Any;
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 enum Operation {
     XOR,
     OR,
     AND,
 }
 
+#[derive(Debug)]
 struct Gate {
     name: String,
     operation: Operation,
-    cache: Option<bool>,
     left: Rc<dyn Source>,
     right: Rc<dyn Source>,
 }
 
 impl Source for Gate {
-    fn evaluate(&mut self) -> bool {
-        match self.cache {
-            Some(value) => value,
-            None => {
-                let left = self.left.evaluate();
-                let right = self.right.evaluate();
-                let result = match self.operation {
-                    Operation::XOR => left ^ right,
-                    Operation::OR => left || right,
-                    Operation::AND => left && right,
-                };
-                self.cache = Some(result);
-                result
-            }
-        }
+    fn evaluate(&self) -> bool {
+        let left = self.left.evaluate();
+        let right = self.right.evaluate();
+        let result = match self.operation {
+            Operation::XOR => left ^ right,
+            Operation::OR => left || right,
+            Operation::AND => left && right,
+        };
+        result
     }
 
     fn name(&self) -> &str {
         &self.name
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
+#[derive(Debug)]
 struct Input {
     name: String,
     value: bool,
@@ -97,6 +61,10 @@ impl Source for Input {
 
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -153,40 +121,63 @@ impl CircuitRegistry {
         );
     }
 
-    fn build(&self, name: &str) -> Box<dyn Source> {
-        match &self.registry[name] {
+    fn build_circuit(&self) -> (Vec<Rc<dyn Source>>, HashMap<String, Rc<dyn Source>>) {
+        let mut gates_and_wires = HashMap::new();
+        let ending_wires = self
+            .ending_wires()
+            .iter()
+            .map(|wire| self.build(wire, &mut gates_and_wires))
+            .collect();
+        (ending_wires, gates_and_wires)
+    }
+
+    fn build(&self, name: &str, cache: &mut HashMap<String, Rc<dyn Source>>) -> Rc<dyn Source> {
+        if cache.contains_key(name) {
+            return Rc::clone(&cache[name]);
+        }
+        let source: Rc<dyn Source> = match &self.registry[name] {
             CircuitElement::Gate {
                 operation,
                 left,
                 right,
-            } => Box::new(Gate {
+            } => Rc::new(Gate {
                 name: name.to_string(),
                 operation: operation.clone(),
-                left: self.build(left),
-                right: self.build(right),
+                left: self.build(left, cache),
+                right: self.build(right, cache),
             }),
-            CircuitElement::Wire { value } => Box::new(Input {
+            CircuitElement::Wire { value } => Rc::new(Input {
                 name: name.to_string(),
                 value: *value,
             }),
-        }
+        };
+        cache.insert(name.to_string(), Rc::clone(&source));
+        source
     }
 
-    fn combine_bits(&self) -> u64 {
+    fn ending_wires(&self) -> Vec<&str> {
         let mut ending_wires = self
             .registry
             .keys()
             .filter(|name| name.starts_with("z"))
-            .collect::<Vec<&String>>();
+            .map(|name| name.as_str())
+            .collect::<Vec<&str>>();
 
         ending_wires.sort_by(|left, right| {
             let left = left.replace("z", "").parse::<u8>().unwrap();
             let right = right.replace("z", "").parse::<u8>().unwrap();
             left.cmp(&right)
         });
+
+        ending_wires
+    }
+
+    fn combine_bits(&self) -> u64 {
+        let (ending_wires, _) = self.build_circuit();
+
         let sum = ending_wires
-            .iter()
-            .map(|ending_wire| self.build(&ending_wire).evaluate())
+            .into_iter()
+            .map(|wire| wire.evaluate())
             .enumerate()
             .map(|(bit, resut)| (resut as u64) << (bit as u64))
             .sum::<u64>();
@@ -194,17 +185,87 @@ impl CircuitRegistry {
     }
 
     fn find_addition_mistakes(&self) -> Vec<String> {
-        todo!()
+        let mut potential_errors: HashSet<String> = HashSet::new();
+        let mut known_carries: HashMap<usize, String> = HashMap::new();
+        let (ending_wires, gates) = self.build_circuit();
+
+        let find_gate_by_child_and_type = |child: &str, gate_type| {
+            gates
+                .iter()
+                .filter(|(_, gate)| match gate.as_any().downcast_ref::<Gate>() {
+                    Some(gate) => {
+                        gate.operation == gate_type
+                            && (gate.left.name() == child || gate.right.name() == child)
+                    }
+                    None => false,
+                })
+                .map(|(_, v)| v.as_any().downcast_ref::<Gate>().unwrap())
+                .next()
+        };
+
+        for (i, gate) in ending_wires.into_iter().enumerate() {
+            let gate = gate.as_any().downcast_ref::<Gate>().unwrap();
+            if i == 0 {
+                if gate.operation != Operation::XOR {
+                    potential_errors.insert(gate.name.clone());
+                    continue;
+                }
+                let and_gate =
+                    find_gate_by_child_and_type(&gate.left.name(), Operation::AND).unwrap();
+                known_carries.insert(i, and_gate.name.clone());
+            } else if i == 45 {
+                // TODO: add validation?
+            } else {
+                let mut error_output = false;
+
+                let xor_first_gate =
+                    find_gate_by_child_and_type(&format!("x{i:0>2}"), Operation::XOR).unwrap();
+                let and_first_gate =
+                    find_gate_by_child_and_type(&format!("x{i:0>2}"), Operation::AND).unwrap();
+
+                if gate.operation != Operation::XOR {
+                    error_output = true;
+                    potential_errors.insert(gate.name.clone());
+                }
+
+                if !error_output && gate.left.name() != xor_first_gate.name
+                    && gate.right.name() != xor_first_gate.name
+                {
+                    potential_errors.insert(xor_first_gate.name.clone());
+                }
+
+                if let Some(carry) = known_carries.get(&(i - 1)) {
+                    if !error_output && gate.left.name() != carry && gate.right.name() != carry {
+                        potential_errors.insert(carry.clone());
+                    }
+                }
+
+                if find_gate_by_child_and_type(&xor_first_gate.name, Operation::AND).is_none() {
+                    potential_errors.insert(xor_first_gate.name.clone());
+                }
+
+                let carry_or = find_gate_by_child_and_type(&and_first_gate.name, Operation::OR);
+
+                if carry_or.is_some() {
+                    known_carries.insert(i, carry_or.unwrap().name.clone());
+                } else {
+                    potential_errors.insert(and_first_gate.name.clone());
+                }
+            }
+        }
+        Vec::from_iter(potential_errors.into_iter())
     }
 }
 
 fn puzzle_1(registry: &CircuitRegistry) {
     let result = registry.combine_bits();
-    println!("Combining all bits give a result {result}");
+    println!("Combining all bits gives a result {result}");
 }
 
 fn puzzle_2(registry: &CircuitRegistry) {
-    let erronous = registry.find_addition_mistakes();
+    let mut erronous = registry.find_addition_mistakes();
+    erronous.sort();
+    println!("List of potential miswires gates: {}", erronous.join(","));
 }
 
 fn main() {
@@ -239,7 +300,50 @@ fn main() {
 
 #[cfg(test)]
 mod test {
-    use crate::MultiIndexCounter;
+
+    // This iterator was created when I tried to bruteforece the solution.
+    // Iterating over all possible pair would take forever, so the idea was abandoned.
+    struct MultiIndexCounter {
+        inner: Vec<usize>,
+        size: usize,
+        overflow: bool,
+        first_call: bool,
+    }
+
+    impl MultiIndexCounter {
+        fn new(pairs: usize, size: usize) -> Self {
+            MultiIndexCounter {
+                inner: vec![0; pairs * 2],
+                size,
+                overflow: false,
+                first_call: true,
+            }
+        }
+
+        fn next(&mut self) -> Option<&Vec<usize>> {
+            if self.first_call {
+                self.first_call = false;
+                return Some(&self.inner);
+            }
+            if self.overflow {
+                return None;
+            }
+            for i in 0..self.inner.len() {
+                if self.inner[i] + 1 < self.size {
+                    self.inner[i] += 1;
+                    break;
+                }
+                self.inner[i] = 0;
+                if i + 1 == self.inner.len() {
+                    self.overflow = true;
+                }
+            }
+            if self.overflow {
+                return None;
+            }
+            Some(&self.inner)
+        }
+    }
 
     #[test]
     fn should_iterate_over_multiple_indexes() {
