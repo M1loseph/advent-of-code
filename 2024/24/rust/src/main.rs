@@ -1,10 +1,4 @@
-use std::{
-    any::Any,
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    fs::read_to_string,
-    rc::Rc,
-};
+use std::{any::Any, collections::HashMap, fmt::Debug, fs::read_to_string, rc::Rc};
 
 trait Source: Any + Debug {
     fn evaluate(&self) -> bool;
@@ -77,6 +71,23 @@ enum CircuitElement {
     Wire {
         value: bool,
     },
+}
+
+#[derive(Debug)]
+enum FullAdderGates {
+    FirstHalfAdderXor,
+    FirstHalfAdderAnd,
+    SecondHalfAdderXor,
+    SecondHalfAdderAnd,
+    OrCarry,
+}
+
+#[derive(Debug)]
+struct CircuitError {
+    bit: usize,
+    gate: FullAdderGates,
+    gate_name: String,
+    explenation: String,
 }
 
 struct CircuitRegistry {
@@ -184,8 +195,7 @@ impl CircuitRegistry {
         sum
     }
 
-    fn find_addition_mistakes(&self) -> Vec<String> {
-        let mut potential_errors: HashSet<String> = HashSet::new();
+    fn validate_addition_mistakes(&self) -> Option<CircuitError> {
         let mut known_carries: HashMap<usize, String> = HashMap::new();
         let (ending_wires, gates) = self.build_circuit();
 
@@ -207,53 +217,48 @@ impl CircuitRegistry {
             let gate = gate.as_any().downcast_ref::<Gate>().unwrap();
             if i == 0 {
                 if gate.operation != Operation::XOR {
-                    potential_errors.insert(gate.name.clone());
-                    continue;
+                    return Some(CircuitError {
+                        bit: i,
+                        gate: FullAdderGates::FirstHalfAdderXor,
+                        gate_name: gate.name.clone(),
+                        explenation: "Gate with input wires in half adders is not a XOR"
+                            .to_string(),
+                    });
                 }
                 let and_gate =
                     find_gate_by_child_and_type(&gate.left.name(), Operation::AND).unwrap();
                 known_carries.insert(i, and_gate.name.clone());
             } else if i == 45 {
-                // TODO: add validation?
+                // unimplemented!()
             } else {
-                let mut error_output = false;
-
-                let xor_first_gate =
-                    find_gate_by_child_and_type(&format!("x{i:0>2}"), Operation::XOR).unwrap();
-                let and_first_gate =
-                    find_gate_by_child_and_type(&format!("x{i:0>2}"), Operation::AND).unwrap();
-
                 if gate.operation != Operation::XOR {
-                    error_output = true;
-                    potential_errors.insert(gate.name.clone());
+                    return Some(CircuitError {
+                        bit: i,
+                        gate: FullAdderGates::SecondHalfAdderXor,
+                        gate_name: gate.name.clone(),
+                        explenation: "Wire outputting Z signal should be a XOR".to_string(),
+                    });
                 }
 
-                if !error_output && gate.left.name() != xor_first_gate.name
+                let x_wire_name = format!("x{i:0>2}");
+                let xor_first_gate =
+                    find_gate_by_child_and_type(&x_wire_name, Operation::XOR).unwrap();
+
+                if gate.left.name() != xor_first_gate.name
                     && gate.right.name() != xor_first_gate.name
                 {
-                    potential_errors.insert(xor_first_gate.name.clone());
-                }
-
-                if let Some(carry) = known_carries.get(&(i - 1)) {
-                    if !error_output && gate.left.name() != carry && gate.right.name() != carry {
-                        potential_errors.insert(carry.clone());
-                    }
-                }
-
-                if find_gate_by_child_and_type(&xor_first_gate.name, Operation::AND).is_none() {
-                    potential_errors.insert(xor_first_gate.name.clone());
-                }
-
-                let carry_or = find_gate_by_child_and_type(&and_first_gate.name, Operation::OR);
-
-                if carry_or.is_some() {
-                    known_carries.insert(i, carry_or.unwrap().name.clone());
-                } else {
-                    potential_errors.insert(and_first_gate.name.clone());
+                    return Some(CircuitError {
+                        bit: i,
+                        gate: FullAdderGates::FirstHalfAdderXor,
+                        gate_name: xor_first_gate.name.clone(),
+                        explenation:
+                            "Wire outputting Z signal is not connected to XOR with x and y bits"
+                                .to_string(),
+                    });
                 }
             }
         }
-        Vec::from_iter(potential_errors.into_iter())
+        None
     }
 }
 
@@ -262,10 +267,16 @@ fn puzzle_1(registry: &CircuitRegistry) {
     println!("Combining all bits gives a result {result}");
 }
 
+/// This solution was created semi-automatically.
+/// When this method panics, it prints the incorrect gate. Than I manually searched the place
+/// where it should belong, improved the input file and rerun the program as long as entire validatoin passed.
 fn puzzle_2(registry: &CircuitRegistry) {
-    let mut erronous = registry.find_addition_mistakes();
+    if let Some(error) = registry.validate_addition_mistakes() {
+        panic!("There was an error {:?}", error);
+    }
+    let mut erronous = vec!["dbp", "fdv", "z15", "ckj", "z23", "kdf", "z39", "rpp"];
     erronous.sort();
-    println!("List of potential miswires gates: {}", erronous.join(","));
+    println!("List of miswires gates: {}", erronous.join(","));
 }
 
 fn main() {
