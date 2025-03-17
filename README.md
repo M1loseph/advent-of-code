@@ -1,7 +1,13 @@
 ## 🎄 Advent of Code solutions 🎄
 
-All examples are implemented in a language I wanted to use on a particular day. I guess there will me mostly Rust and C++, occasionally Kotlin. Java is not welcome.
+Examples are implemented in a language I wanted to use in a particular year. I guess there will me mostly Rust and C++, occasionally Kotlin.
 
+My progress in Advent of Code looks as follows:
+
+| Year | Languages  | Stars ⭐ |
+| ---- | ---------- | ------- |
+| 2024 | Rust       | 50      |
+| 2023 | Rust / C++ | 16      |
 
 ### TODO:
 
