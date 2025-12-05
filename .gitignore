@@ -2,3 +2,5 @@ target/
 build/
 .vscode/
 input.txt
+out/
+.idea/
