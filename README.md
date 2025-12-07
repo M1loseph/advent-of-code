@@ -6,7 +6,7 @@ My progress in Advent of Code looks as follows:
 
 | Year | Programming languages 👨🏻‍💻 | Stars so far ⭐ |
 | ---- | ----------------------- | -------------- |
-| 2024 | Rust / Kotlin           | 12             |
+| 2024 | Rust / Kotlin           | 14             |
 | 2024 | Rust                    | 50             |
 | 2023 | Rust / C++              | 16             |
 
