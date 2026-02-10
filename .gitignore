@@ -4,3 +4,5 @@ build/
 input.txt
 out/
 .idea/
+venv/
+
